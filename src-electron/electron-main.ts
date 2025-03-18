@@ -119,3 +119,174 @@ ipcMain.on('open-file', (_, filePath) => {
     console.error('Erro ao abrir arquivo:', error);
   }
 });
+
+// Lidar com o canal IPC para imprimir arquivos
+ipcMain.on('print-file', (event, filePath) => {
+  try {
+    // Verifica se o arquivo existe
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Arquivo não encontrado: ${filePath}`);
+    }
+
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) {
+      throw new Error('Janela não encontrada');
+    }
+
+    // Verifica a extensão do arquivo
+    const ext = path.extname(filePath).toLowerCase();
+
+    // Para arquivos PDF e imagens, usamos o recurso de impressão do Electron
+    if (['.pdf', '.jpg', '.jpeg', '.png'].includes(ext)) {
+      // Cria uma janela temporária invisível
+      const printWindow = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          contextIsolation: true,
+        },
+      });
+
+      // Carrega o arquivo
+      if (ext === '.pdf') {
+        printWindow.loadURL(`file://${filePath}`);
+      } else {
+        // Para imagens, cria uma página HTML simples com a imagem
+        printWindow.loadURL(`data:text/html;charset=utf-8,
+          <html>
+            <body style="margin: 0; display: flex; justify-content: center;">
+              <img src="file://${filePath}" style="max-width: 100%; max-height: 100vh; object-fit: contain;">
+            </body>
+          </html>
+        `);
+      }
+
+      // Quando o conteúdo for carregado, imprime
+      printWindow.webContents.on('did-finish-load', () => {
+        printWindow.webContents.print({ silent: false, printBackground: true }, (success) => {
+          if (!success) {
+            console.error('Falha ao imprimir');
+          }
+          printWindow.close();
+        });
+      });
+    } else {
+      // Para outros tipos de arquivo, abrimos com o aplicativo padrão
+      // e deixamos o aplicativo lidar com a impressão
+      shell.openPath(filePath);
+    }
+  } catch (error) {
+    console.error('Erro ao imprimir arquivo:', error);
+  }
+});
+
+// Lidar com o canal IPC para imprimir lista de arquivos
+ipcMain.on('print-file-list', (event, printData) => {
+  try {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) {
+      throw new Error('Janela não encontrada');
+    }
+
+    // Cria uma janela temporária invisível
+    const printWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        contextIsolation: true,
+      },
+    });
+
+    // Gera o HTML para a lista de arquivos
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>${printData.title}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+          }
+          h1 {
+            font-size: 18px;
+            margin-bottom: 10px;
+          }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+          }
+          th {
+            background-color: #f2f2f2;
+          }
+          .footer {
+            margin-top: 20px;
+            font-size: 12px;
+            text-align: center;
+            color: #666;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>${printData.title}</h1>
+          <div>Data: ${printData.date}</div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Tipo</th>
+              <th>Tamanho</th>
+              <th>Data de Modificação</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${printData.files
+              .map(
+                (file) => `
+              <tr>
+                <td>${file.name}</td>
+                <td>${file.type}</td>
+                <td>${file.size}</td>
+                <td>${file.date}</td>
+              </tr>
+            `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          Gerado por Downloads Explorer em ${printData.date}
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Carrega o HTML
+    printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+
+    // Quando o conteúdo for carregado, imprime
+    printWindow.webContents.on('did-finish-load', () => {
+      printWindow.webContents.print({ silent: false, printBackground: true }, (success) => {
+        if (!success) {
+          console.error('Falha ao imprimir lista');
+        }
+        printWindow.close();
+      });
+    });
+  } catch (error) {
+    console.error('Erro ao imprimir lista de arquivos:', error);
+  }
+});

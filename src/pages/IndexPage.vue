@@ -3,6 +3,10 @@
     <div class="q-pa-md">
       <h5 class="q-mt-none q-mb-md">Arquivos em Downloads</h5>
 
+      <div class="q-mb-md">
+        <q-btn color="primary" icon="print" label="Imprimir Lista" @click="printFileList" />
+      </div>
+
       <q-list bordered separator>
         <q-item v-for="file in files" :key="file.name" clickable v-ripple>
           <q-item-section avatar>
@@ -17,7 +21,18 @@
           </q-item-section>
 
           <q-item-section side>
-            <q-btn flat round icon="open_in_new" @click="openFile(file.path)" />
+            <div class="row items-center">
+              <q-btn
+                flat
+                round
+                icon="print"
+                size="sm"
+                @click="printFile(file)"
+                class="q-mr-xs"
+                color="primary"
+              />
+              <q-btn flat round icon="open_in_new" @click="openFile(file.path)" />
+            </div>
           </q-item-section>
         </q-item>
 
@@ -116,6 +131,28 @@ const formatDate = (date: Date): string => {
 // Função para abrir o arquivo usando o Electron
 const openFile = (path: string) => {
   window.electron.ipcRenderer.send('open-file', path);
+};
+
+// Função para imprimir um arquivo específico
+const printFile = (file: FileInfo) => {
+  window.electron.ipcRenderer.send('print-file', file.path);
+};
+
+// Função para imprimir a lista de arquivos
+const printFileList = () => {
+  // Preparar os dados para impressão
+  const printData = {
+    title: 'Lista de Arquivos - Downloads',
+    date: new Date().toLocaleString('pt-BR'),
+    files: files.value.map((file) => ({
+      name: file.name,
+      size: formatFileSize(file.size),
+      date: formatDate(file.modifiedAt),
+      type: file.isDirectory ? 'Pasta' : `Arquivo ${file.extension.toUpperCase()}`,
+    })),
+  };
+
+  window.electron.ipcRenderer.send('print-file-list', printData);
 };
 
 // Função para determinar o ícone com base no tipo de arquivo

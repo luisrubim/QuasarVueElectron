@@ -7,6 +7,18 @@ interface ElectronAPI {
   };
 }
 
+// Interface para dados de impressão
+interface PrintFileListData {
+  title: string;
+  date: string;
+  files: Array<{
+    name: string;
+    size: string;
+    date: string;
+    type: string;
+  }>;
+}
+
 declare interface Window {
   electron: ElectronAPI;
 }
