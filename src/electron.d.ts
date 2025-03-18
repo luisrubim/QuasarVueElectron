@@ -17,6 +17,7 @@ interface PrintFileListData {
     date: string;
     type: string;
   }>;
+  silent: boolean; // Opção para impressão silenciosa
 }
 
 declare interface Window {

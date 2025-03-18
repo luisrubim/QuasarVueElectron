@@ -119,9 +119,8 @@ ipcMain.on('open-file', (_, filePath) => {
     console.error('Erro ao abrir arquivo:', error);
   }
 });
-
 // Lidar com o canal IPC para imprimir arquivos
-ipcMain.on('print-file', (event, filePath) => {
+ipcMain.on('print-file', (event, filePath, silent = true) => {
   try {
     // Verifica se o arquivo existe
     if (!fs.existsSync(filePath)) {
@@ -162,12 +161,18 @@ ipcMain.on('print-file', (event, filePath) => {
 
       // Quando o conteúdo for carregado, imprime
       printWindow.webContents.on('did-finish-load', () => {
-        printWindow.webContents.print({ silent: false, printBackground: true }, (success) => {
-          if (!success) {
-            console.error('Falha ao imprimir');
-          }
-          printWindow.close();
-        });
+        printWindow.webContents.print(
+          {
+            silent: silent, // Usa o valor passado
+            printBackground: true,
+          },
+          (success) => {
+            if (!success) {
+              console.error('Falha ao imprimir');
+            }
+            printWindow.close();
+          },
+        );
       });
     } else {
       // Para outros tipos de arquivo, abrimos com o aplicativo padrão

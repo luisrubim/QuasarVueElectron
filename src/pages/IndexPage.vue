@@ -3,8 +3,15 @@
     <div class="q-pa-md">
       <h5 class="q-mt-none q-mb-md">Arquivos em Downloads</h5>
 
-      <div class="q-mb-md">
-        <q-btn color="primary" icon="print" label="Imprimir Lista" @click="printFileList" />
+      <div class="q-mb-md row items-center">
+        <q-btn
+          color="primary"
+          icon="print"
+          label="Imprimir Lista"
+          @click="printFileList"
+          class="q-mr-sm"
+        />
+        <q-toggle v-model="silentPrint" label="Impressão silenciosa" />
       </div>
 
       <q-list bordered separator>
@@ -74,6 +81,7 @@ interface FileInfo {
 const files = ref<FileInfo[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
+const silentPrint = ref(true); // Opção para impressão silenciosa, padrão true
 
 // Carregar os arquivos quando o componente for montado
 onMounted(async () => {
@@ -135,7 +143,7 @@ const openFile = (path: string) => {
 
 // Função para imprimir um arquivo específico
 const printFile = (file: FileInfo) => {
-  window.electron.ipcRenderer.send('print-file', file.path);
+  window.electron.ipcRenderer.send('print-file', file.path, silentPrint.value);
 };
 
 // Função para imprimir a lista de arquivos
@@ -150,6 +158,7 @@ const printFileList = () => {
       date: formatDate(file.modifiedAt),
       type: file.isDirectory ? 'Pasta' : `Arquivo ${file.extension.toUpperCase()}`,
     })),
+    silent: silentPrint.value, // Incluir a opção de impressão silenciosa
   };
 
   window.electron.ipcRenderer.send('print-file-list', printData);
