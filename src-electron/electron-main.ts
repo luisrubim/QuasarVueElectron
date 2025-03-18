@@ -119,6 +119,7 @@ ipcMain.on('open-file', (_, filePath) => {
     console.error('Erro ao abrir arquivo:', error);
   }
 });
+
 // Lidar com o canal IPC para imprimir arquivos
 ipcMain.on('print-file', (event, filePath, silent = true) => {
   try {
@@ -142,38 +143,91 @@ ipcMain.on('print-file', (event, filePath, silent = true) => {
         show: false,
         webPreferences: {
           contextIsolation: true,
+          javascript: true,
         },
       });
 
-      // Carrega o arquivo
+      // Conteúdo HTML para imagens
+      let htmlContent = '';
+
       if (ext === '.pdf') {
+        // Para PDFs, carregamos diretamente o arquivo
         printWindow.loadURL(`file://${filePath}`);
       } else {
-        // Para imagens, cria uma página HTML simples com a imagem
-        printWindow.loadURL(`data:text/html;charset=utf-8,
+        // Para imagens, criamos uma página HTML com a imagem e script para impressão direta se necessário
+        htmlContent = `
           <html>
-            <body style="margin: 0; display: flex; justify-content: center;">
-              <img src="file://${filePath}" style="max-width: 100%; max-height: 100vh; object-fit: contain;">
+            <head>
+              <title>Impressão de Imagem</title>
+              <style>
+                body {
+                  margin: 0;
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  height: 100vh;
+                }
+                img {
+                  max-width: 100%;
+                  max-height: 100vh;
+                  object-fit: contain;
+                }
+                @media print {
+                  body { margin: 0; }
+                  img { max-height: 100%; }
+                }
+              </style>
+              ${
+                silent
+                  ? `
+              <script>
+                // Script para impressão direta sem diálogo
+                document.addEventListener('DOMContentLoaded', function() {
+                  setTimeout(() => {
+                    window.print();
+                  }, 300);
+                });
+              </script>
+              `
+                  : ''
+              }
+            </head>
+            <body>
+              <img src="file://${filePath}" alt="Imagem para impressão">
             </body>
           </html>
-        `);
+        `;
+
+        printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
       }
 
-      // Quando o conteúdo for carregado, imprime
-      printWindow.webContents.on('did-finish-load', () => {
-        printWindow.webContents.print(
-          {
-            silent: silent, // Usa o valor passado
-            printBackground: true,
-          },
-          (success) => {
-            if (!success) {
-              console.error('Falha ao imprimir');
+      // Se for um PDF ou não estiver no modo silencioso, usamos a API padrão do Electron
+      if (ext === '.pdf' || !silent) {
+        printWindow.webContents.on('did-finish-load', () => {
+          printWindow.webContents.print(
+            {
+              silent: silent,
+              printBackground: true,
+            },
+            (success) => {
+              if (!success) {
+                console.error('Falha ao imprimir');
+              }
+              printWindow.close();
+            },
+          );
+        });
+      } else {
+        // Para imagens no modo silencioso, usamos window.print() através do script injetado
+        printWindow.webContents.on('did-finish-load', () => {
+          // Defina um tempo limite para fechar a janela após a impressão
+          setTimeout(() => {
+            if (printWindow && !printWindow.isDestroyed()) {
+              printWindow.close();
             }
-            printWindow.close();
-          },
-        );
-      });
+          }, 1000);
+        });
+      }
     } else {
       // Para outros tipos de arquivo, abrimos com o aplicativo padrão
       // e deixamos o aplicativo lidar com a impressão
@@ -284,12 +338,15 @@ ipcMain.on('print-file-list', (event, printData) => {
 
     // Quando o conteúdo for carregado, imprime
     printWindow.webContents.on('did-finish-load', () => {
-      printWindow.webContents.print({ silent: false, printBackground: true }, (success) => {
-        if (!success) {
-          console.error('Falha ao imprimir lista');
-        }
-        printWindow.close();
-      });
+      printWindow.webContents.print(
+        { silent: printData.silent, printBackground: true },
+        (success) => {
+          if (!success) {
+            console.error('Falha ao imprimir lista');
+          }
+          printWindow.close();
+        },
+      );
     });
   } catch (error) {
     console.error('Erro ao imprimir lista de arquivos:', error);
